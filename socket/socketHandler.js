@@ -7,8 +7,9 @@ module.exports = function initSocket(server) {
 
   const io = new Server(server, {
     cors: {
-      origin: "http://localhost:3000",
-      methods: ["GET", "POST"]
+      origin: "*", // ✅ CHANGED: allow all (for Render + any frontend)
+      methods: ["GET", "POST"],
+      credentials: true
     }
   });
 
@@ -27,10 +28,7 @@ module.exports = function initSocket(server) {
   io.on("connection", (socket) => {
     console.log(`Socket connected: ${socket.userId}`);
 
-    // Personal room — DM + invite + activity + tournament notifications
     socket.join(socket.userId);
-
-    // ─── MATCH CHAT EVENTS ────────────────────────────────────
 
     socket.on("joinMatchRoom", async ({ matchId }) => {
       try {
@@ -48,6 +46,7 @@ module.exports = function initSocket(server) {
 
         const isHost = match.createdBy?.toString() === socket.userId;
         const history = await getVisibleMessages(matchId, socket.userId, isHost, match.chatOpenForAll);
+
         socket.emit("chatHistory", history);
         socket.emit("chatVisibility", { chatOpenForAll: match.chatOpenForAll, isHost });
 
@@ -89,10 +88,12 @@ module.exports = function initSocket(server) {
             s.emit("newMessage", { ...populated.toObject(), isHostMessage: isHost });
             continue;
           }
+
           if (match.chatOpenForAll) {
             s.emit("newMessage", { ...populated.toObject(), isHostMessage: isHost });
             continue;
           }
+
           if (isHost) {
             s.emit("newMessage", { ...populated.toObject(), isHostMessage: true });
           } else if (s.userId === socket.userId) {
@@ -108,8 +109,6 @@ module.exports = function initSocket(server) {
     socket.on("notifyChatToggle", ({ matchId, chatOpenForAll }) => {
       io.to(matchId).emit("chatVisibilityChanged", { chatOpenForAll });
     });
-
-    // ─── DIRECT MESSAGE EVENTS ────────────────────────────────
 
     socket.on("dm:send", async ({ receiverId, text }) => {
       try {
@@ -155,6 +154,7 @@ module.exports = function initSocket(server) {
           message: populated,
           conversationId: conversation._id,
         });
+
       } catch (err) {
         console.error("[DM Error]", err.message);
         socket.emit("dm:error", { message: "Message send failed" });
@@ -167,8 +167,6 @@ module.exports = function initSocket(server) {
         isTyping,
       });
     });
-
-    // ─── ACTIVITY BROADCAST ───────────────────────────────────
 
     socket.on("activity:broadcast", async ({ activityId }) => {
       try {
@@ -194,8 +192,6 @@ module.exports = function initSocket(server) {
       }
     });
 
-    // ─── DISCONNECT ───────────────────────────────────────────
-
     socket.on("disconnect", () => {
       console.log(`Socket disconnected: ${socket.userId}`);
     });
@@ -210,11 +206,7 @@ async function getVisibleMessages(matchId, userId, isHost, chatOpenForAll) {
 
   let query = { matchId };
 
-  if (isHost) {
-    // no filter
-  } else if (chatOpenForAll) {
-    // no filter
-  } else {
+  if (!isHost && !chatOpenForAll) {
     query.sender = hostId;
   }
 
