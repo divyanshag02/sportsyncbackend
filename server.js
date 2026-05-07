@@ -29,17 +29,17 @@ const server = http.createServer(app);
 // ✅ Init Socket.io
 const io = initSocket(server);
 app.set("io", io);
-
-// ✅ CORS (FIXED FOR GLOBAL ACCESS + NO ERRORS)
 app.use(cors({
-  origin: "*", // ✅ CHANGED: allow all origins (Render + any frontend)
+  origin: [
+    "http://localhost:3000",
+    "https://sportssync.netlify.app"
+  ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  credentials: true,
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 // ✅ Preflight fix (important)
-app.options("*", cors());
-
 // ✅ Middleware
 app.use(express.json());
 
